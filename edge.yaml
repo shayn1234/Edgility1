@@ -1,0 +1,210 @@
+tosca_definitions_version: cloudify_dsl_1_3
+
+data_types:
+   faasConfiguration:
+        description: define FAAS end point
+        properties:
+             uri:
+               default: ""
+               type: string
+               required: true
+                  
+
+imports:
+  - http://www.getcloudify.org/spec/cloudify/4.3/types.yaml
+  - http://www.getcloudify.org/spec/kubernetes-plugin/2.2.1/plugin.yaml
+  - http://www.getcloudify.org/spec/fabric-plugin/1.5.1/plugin.yaml
+
+inputs:
+
+  kubernetes_master_configuration:
+    default: {}
+
+  kubernetes_configuration_file_content:
+    description: >
+      File content of kubernetes master YAML configuration
+    default: { get_input: kubernetes_master_configuration }
+
+  install_method:
+    default: none
+  user:
+    default: centos
+
+
+
+node_types:
+  
+  cloudify.nodes.Functions:
+    derived_from: cloudify.nodes.SoftwareComponent
+    properties:
+      cwd:
+        default: /home/centos/ephemera/deployment
+      args:
+        default:
+          - faas-name
+          - function-name
+    interfaces:
+      cloudify.interfaces.lifecycle:
+        start:
+          implementation: fabric.fabric_plugin.tasks.run_script
+          inputs:
+            script_path:
+              default: scripts/installf.sh # Relative to the blueprint file.
+            process:
+              default: &process_vars
+                cwd: { get_property: [ SELF, cwd ] }
+                args: { get_property: [ SELF, args ] }
+            fabric_env:
+              default: &fabric_env
+                user: { get_input: user }
+                host_string: '192.168.31.235'
+                key: { get_secret: agent_key_private } 
+        stop:
+          implementation: fabric.fabric_plugin.tasks.run_script
+          inputs:
+            script_path:
+              default: scripts/deletef.sh 
+            process:
+              default: *process_vars
+            fabric_env:
+              default: *fabric_env
+        scale:
+          implementation: fabric.fabric_plugin.tasks.run_script
+          inputs:
+            script_path:
+              default: scripts/scalef.sh
+            process:
+              default: *process_vars
+            fabric_env:
+              default: *fabric_env
+
+
+
+
+  cloudify.kubeless:
+    derived_from: cloudify.nodes.Root
+    properties:
+       file_path:
+         description: Kubless serverless.yaml file path
+         type: string
+
+  cloudify.faas:
+    derived_from: cloudify.nodes.Root
+    properties:
+       configuration: 
+          type: faasConfiguration
+
+node_templates:
+  master:
+    type: cloudify.kubernetes.nodes.Master
+    properties:
+      configuration:
+        file_content: { get_input: kubernetes_configuration_file_content }
+
+  IOTg:
+    type: cloudify.kubernetes.resources.FileDefinedResource
+    properties:
+      file:
+        resource_path: resources/iotg.yaml
+    relationships:
+      - type: cloudify.kubernetes.relationships.managed_by_master
+        target: master
+      - type: cloudify.relationships.connected_to
+        target: Ford
+      - type: cloudify.relationships.connected_to
+        target: Toyota
+      - type: cloudify.relationships.connected_to
+        target: Mazda
+
+
+
+  IOTgs:
+    type: cloudify.kubernetes.resources.FileDefinedResource
+    properties:
+      file:
+        resource_path: resources/iotgs.yaml
+    relationships:
+      - type: cloudify.kubernetes.relationships.managed_by_master
+        target: master
+      - type: cloudify.relationships.connected_to
+        target: IOTg
+
+
+  Kubeless:
+    type: cloudify.kubeless
+    properties:
+       file_path: "resources/serverless.yaml"
+#         resource_path: resources/serverless.yaml
+#       functions:
+#         resource_path: ......
+#    interfaces:
+# install serverless.yaml cofig file and functions in place
+#        create:
+#             cp resources
+    relationships:
+      - type: cloudify.relationships.connected_to
+        target: master
+
+
+  Ford:
+   type: cloudify.nodes.Functions
+   properties:
+     args:
+       - car1
+       - honda
+   interfaces:
+      cloudify.interfaces.lifecycle:
+        start:
+          implementation: fabric.fabric_plugin.tasks.run_script
+          inputs:
+            script_path: scripts/installford.sh
+        stop:
+          implementation: fabric.fabric_plugin.tasks.run_script
+          inputs:
+            script_path: scripts/deleteford.sh
+   relationships:
+      - type: cloudify.relationships.connected_to
+        target: Kubeless
+  
+
+  Toyota:
+   type: cloudify.nodes.Functions
+   properties:
+     args:
+       - car1
+       - honda
+   interfaces:
+      cloudify.interfaces.lifecycle:
+        start:
+          implementation: fabric.fabric_plugin.tasks.run_script
+          inputs:
+            script_path: scripts/installtoyota.sh
+        stop:
+          implementation: fabric.fabric_plugin.tasks.run_script
+          inputs:
+            script_path: scripts/deletetoyota.sh
+   relationships:
+      - type: cloudify.relationships.connected_to
+        target: Kubeless
+
+
+  Mazda:
+   type: cloudify.nodes.Functions
+   properties:
+     args:
+       - car1
+       - honda
+   interfaces:
+      cloudify.interfaces.lifecycle:
+        start:
+          implementation: fabric.fabric_plugin.tasks.run_script
+          inputs:
+            script_path: scripts/installmazda.sh
+        stop:
+          implementation: fabric.fabric_plugin.tasks.run_script
+          inputs:
+            script_path: scripts/deletemazda.sh
+   relationships:
+      - type: cloudify.relationships.connected_to
+        target: Kubeless
+

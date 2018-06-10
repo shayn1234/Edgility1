@@ -1,0 +1,33 @@
+apiVersion: v1
+kind: Pod
+metadata:
+ name: iotg
+ labels: 
+   app: iotg
+spec:
+ containers:
+ - name: iotg
+   image: "erlio/docker-vernemq"
+   env:
+     - name: DOCKER_VERNEMQ_USER_HONDA
+       value: honda
+     - name: DOCKER_VERNEMQ_PLUGINS__VMQ_WEBHOOKS
+       value: 'on'
+     - name: DOCKER_VERNEMQ_VMQ_WEBHOOKS__TOYOTA__HOOK
+       value: 'on_publish'
+     - name: DOCKER_VERNEMQ_VMQ_WEBHOOKS__TOYOTA__ENDPOINT
+       value: http://toyota-function:8080/
+     - name: DOCKER_VERNEMQ_VMQ_WEBHOOKS__FORD__HOOK
+       value: 'on_publish'
+     - name: DOCKER_VERNEMQ_VMQ_WEBHOOKS__FORD__ENDPOINT
+       value: http://ford-function:8080/
+     - name: DOCKER_VERNEMQ_VMQ_WEBHOOKS__MAZDA__HOOK
+       value: 'on_publish'
+     - name: DOCKER_VERNEMQ_VMQ_WEBHOOKS__MAZDA__ENDPOINT
+       value: http://mazda-function:8080/
+
+   stdin: true
+   tty: true
+   securityContext:
+     privileged: true
+
